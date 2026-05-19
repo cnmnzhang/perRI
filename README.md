@@ -6,9 +6,9 @@ Code accompanying the paper. Fits a Bayesian model to an individual's longitudin
 
 ## Requirements
 
-Python 3.9+. Install dependencies:
+Python 3.9+. 
 
-Method 1. Installs the package in editable mode with all dependencies from `pyproject.toml`. 
+To install the package in editable mode with all dependencies from `pyproject.toml`:
 ```bash
   python3 -m venv .venv                                                         
   source .venv/bin/activate
@@ -17,12 +17,6 @@ Method 1. Installs the package in editable mode with all dependencies from `pypr
 If you also want the Streamlit app:
 ```bash                                                                
   pip install -e ".[app]"
-```
-
-Or without installing:
-
-```bash
-pip install numpy pandas scipy numba matplotlib
 ```
 
 ---
@@ -55,26 +49,11 @@ Optional flags for both scripts:
 | `--patient_id` | `3` | Patient ID — single-patient script only |
 | `--sex` | `ALL` | `ALL`, `M`, or `F` |
 
-**List all supported markers:**
-
-```bash
-python -c "import perri as pri; print(pri.list_supported_markers())"
-```
-
-**Interactive Streamlit app** (requires `pip install streamlit`):
+**Interactive Streamlit app** (requires `pip install streamlit plotly`):
 
 ```bash
 streamlit run perri/app.py
 ```
-
----
-
-## Data Format
-
-To run on your own data, provide a CSV with columns:
-
-```
-patient_id, test_code, result_value, result_date
-```
-
-where `result_date` is ISO 8601 (`YYYY-MM-DD`) and `test_code` is one of the 43 supported marker codes.
+'
+Supports
+`['A1C', 'ALB', 'ALK', 'ALT', 'AST', 'BIL', 'BILD', 'BUN', 'CA', 'CHOL', 'CL', 'CO2', 'CRE', 'FER', 'GLU', 'HB', 'HCT', 'HDL', 'HSCRP', 'IGAP', 'K', 'LD', 'LDL', 'LYMPH', 'MCH', 'MCHC', 'MCV', 'MG', 'MONOC', 'NA', 'NONHDL', 'P', 'PLT', 'PROINR', 'PROPAT', 'RBC', 'RDWCV', 'TNEUT', 'TP', 'TRIG', 'TSH', 'VITDT', 'WBC']`
