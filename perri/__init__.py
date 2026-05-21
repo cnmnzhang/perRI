@@ -20,7 +20,7 @@ Quick start
 """
 
 from .defaults import get_default_params, get_intra_patient_std, list_supported_markers
-from .fit import FitResult, fit_batch, fit_patient
+from .fit import SetpointFit, fit_batch, fit_patient
 from .marker_config import BATTERY2TESTCODE, MARKER_CONFIG, MARKER_FULL_NAMES, MARKER_UNITS, get_population_ri
 from .metrics import compute_ks, compute_ks_quintile_range, compute_rmse, evaluate_batch
 from .plot import plot_fit
@@ -28,7 +28,7 @@ from .plot import plot_fit
 __all__ = [
     "fit_patient",
     "fit_batch",
-    "FitResult",
+    "SetpointFit",
     "plot_fit",
     "compute_rmse",
     "compute_ks",

@@ -146,7 +146,7 @@ with col_cfg:
         min_gap = st.slider(
             "Min gap (days)", 0, 365, 90, 10,
             disabled=not filter_iso,
-            help="Keep only measurements ≥ this many days from all neighbors.",
+            help="Keep only measurements ≥ this many days from all neighbors. Default 90 days. Set to 0 to disable filtering.",
             key="min_gap",
         )
         min_meas = st.number_input("Min measurements required", min_value=1, max_value=20, value=5, key="min_meas")

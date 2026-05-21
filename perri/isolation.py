@@ -6,14 +6,11 @@ any other measurement for the same patient. This removes clusters of repeat
 draws (e.g. serial phlebotomy, same-day panels) that would bias the setpoint
 estimate by over-representing a single time point.
 
-Default gap: 90 days (matches the research repo's utils/setpoints.py).
+Default gap: 90 days 
 
-Webapp note
------------
-For a webapp, expose min_gap_days as a UI slider so users can explore how
+In the webapp, `min_gap_days` is exposed as a UI slider so users can explore how
 the isolation threshold affects the number of retained measurements and the
-final setpoint estimate. A value of 0 disables filtering entirely (useful
-for markers drawn very infrequently).
+final setpoint estimate. A value of 0 disables filtering entirely.
 """
 
 import numpy as np

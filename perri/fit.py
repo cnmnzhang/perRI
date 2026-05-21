@@ -4,7 +4,7 @@ Entry points for fitting the Bayesian setpoint model.
 This is the main module to import. Two functions cover all use cases:
 
   fit_patient(values, timestamps, test_code)
-      Single patient. Returns a FitResult with mu_history, sigma_history,
+      Single patient. Returns a SetpointFit with mu_history, sigma_history,
       filtered values, and timestamps. Use this for interactive or real-time
       per-patient display.
 
@@ -31,10 +31,6 @@ Both functions:
     test_code is given; pass params= to override
   - Return None / exclude patients with fewer than min_measurements after filtering
 
-Internal implementation modules (not part of the public API):
-  bayesian_model.py  — numba-accelerated grid posterior
-  isolation.py       — isolation filter
-  defaults.py        — hyperparameter + intra-patient std lookup
 """
 
 from __future__ import annotations
@@ -49,7 +45,7 @@ from .isolation import filter_isolated
 
 
 @dataclass
-class FitResult:
+class SetpointFit:
     """
     Output of fit_patient().
 
@@ -82,7 +78,7 @@ def fit_patient(
     filter_isolated_measurements: bool = True,
     min_gap_days: int = 90,
     min_measurements: int = 5,
-) -> FitResult | None:
+) -> SetpointFit | None:
     """
     Fit the Bayesian setpoint model for a single patient.
 
@@ -111,7 +107,7 @@ def fit_patient(
 
     Returns
     -------
-    FitResult or None
+    SetpointFit or None
         None if fewer than min_measurements remain after filtering.
     """
     if params is None:
@@ -129,7 +125,7 @@ def fit_patient(
         return None
 
     mu_history, sigma_history = bayesian(values, **params)
-    return FitResult(
+    return SetpointFit(
         mu_history=mu_history,
         sigma_history=sigma_history,
         values=values,

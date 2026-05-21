@@ -1,9 +1,6 @@
 """
 Core Bayesian setpoint model.
 
-Adapted from models/bayesian.py in the research repo. All repo-specific imports
-have been removed; this file depends only on numpy and numba.
-
 Algorithm overview
 ------------------
 At each time step t, the model maintains a posterior distribution over
