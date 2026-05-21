@@ -4,7 +4,7 @@ Code accompanying the paper: *Personalized clinical reference intervals for rout
 
 Built on University of Washington Medicine (UWM) data. All default hyperparameters, units, and reference ranges are calibrated to UWM laboratory standards. 
 
-> **Note on units and reference ranges:** Default hyperparameters assume UWM laboratory units and reference ranges ([UW Lab Test Guide](https://testguide.labmed.uw.edu/)). If your institution uses different units or reference ranges, update `bayesian_hyperparameters.csv` to reflect own lab's reference ranges. 
+> **Note on units and reference ranges:** Default hyperparameters assume UWM laboratory units and reference ranges ([UW Lab Test Guide](https://testguide.labmed.uw.edu/)). If your institution uses different units or reference ranges, update `bayesian_hyperparameters.csv` and `marker_intra_patient_std.csv` to reflect own lab's reference ranges. 
 
 ---
 
@@ -23,14 +23,10 @@ The model takes an ordered sequence of measurement values and timestamps for a s
 | Parameter | Description |
 |-----------|-------------|
 | `log_lambda_` | Log of the temporal decay rate. Higher values give more weight to recent measurements over older ones. Optimized per marker, procedure mentioned in the paper |
-| `min_mu`, `max_mu` | Search grid bounds for the setpoint μ. Typically set as: **population RI center ± 2.5 × population RI range**. |
+| `min_mu`, `max_mu` | Search grid bounds for the setpoint μ. Set as: **population RI center ± 2.5 × population RI range**. |
 | `min_sigma`, `max_sigma` | Search grid bounds for within-person SD σ. |
 
-Pre-optimized values for all 43 supported markers are in `perri/data/bayesian_hyperparameters.csv`, stratified by sex (`ALL`, `M`, `F`).
-
-### Supported Markers
-
-43 common lab markers:
+Pre-optimized values for all 43 supported markers are in `perri/data/bayesian_hyperparameters.csv`, stratified by sex (`ALL`, `M`, `F`). Supported markers: 
 
 `['A1C', 'ALB', 'ALK', 'ALT', 'AST', 'BIL', 'BILD', 'BUN', 'CA', 'CHOL', 'CL', 'CO2', 'CRE', 'FER', 'GLU', 'HB', 'HCT', 'HDL', 'HSCRP', 'IGAP', 'K', 'LD', 'LDL', 'LYMPH', 'MCH', 'MCHC', 'MCV', 'MG', 'MONOC', 'NA', 'NONHDL', 'P', 'PLT', 'PROINR', 'PROPAT', 'RBC', 'RDWCV', 'TNEUT', 'TP', 'TRIG', 'TSH', 'VITDT', 'WBC']`
 
