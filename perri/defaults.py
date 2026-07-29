@@ -6,7 +6,7 @@ marker) by minimizing a composite loss of RMSE + KS + KS-quintile-range on a
 held-out test set. See the research repo (models/bayesian.py, scripts/lambda_grid_search.py)
 for the optimization pipeline.
 
-The bundled CSV (data/bayesian_hyperparameters_v_obj2.csv) covers 43 lab
+The bundled CSV (data/bayesian_hyperparameters.csv) covers 43 lab
 markers. Each marker has at minimum an "ALL" (sex-pooled) row and may also
 have sex-stratified "M" / "F" rows when the within-person distribution differs
 meaningfully by sex (e.g. hemoglobin).
@@ -37,7 +37,7 @@ _intra_std_df: Optional[pd.DataFrame] = None
 def _load() -> pd.DataFrame:
     global _params_df
     if _params_df is None:
-        path = _DATA_DIR / "bayesian_hyperparameters_v_obj2.csv"
+        path = _DATA_DIR / "bayesian_hyperparameters.csv"
         _params_df = pd.read_csv(path, keep_default_na=False)
     return _params_df
 

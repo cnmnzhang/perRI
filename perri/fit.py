@@ -133,6 +133,65 @@ def fit_patient(
     )
 
 
+def _fit_one_patient_records(
+    patient_id,
+    group: pd.DataFrame,
+    value_col: str,
+    timestamp_col: str,
+    test_code: str,
+    sex: str,
+    params: dict,
+    filter_isolated_measurements: bool,
+    min_gap_days: int,
+    min_measurements: int,
+) -> list:
+    result = fit_patient(
+        values=group[value_col].values,
+        timestamps=group[timestamp_col].values,
+        test_code=test_code,
+        sex=sex,
+        params=params,
+        filter_isolated_measurements=filter_isolated_measurements,
+        min_gap_days=min_gap_days,
+        min_measurements=min_measurements,
+    )
+    if result is None:
+        return []
+    return [
+        {
+            "patient_id": patient_id,
+            "timestamp": ts,
+            "value": val,
+            "mu": mu,
+            "sigma": sigma,
+            "measurement_index": i,
+        }
+        for i, (ts, val, mu, sigma) in enumerate(zip(result.timestamps, result.values, result.mu_history, result.sigma_history))
+    ]
+
+
+def _fit_chunk_records(
+    chunk: list,
+    value_col: str,
+    timestamp_col: str,
+    test_code: str,
+    sex: str,
+    params: dict,
+    filter_isolated_measurements: bool,
+    min_gap_days: int,
+    min_measurements: int,
+) -> list:
+    """Fit every (patient_id, group) pair in `chunk` serially within one worker.
+
+    Returns a list of per-patient record-lists (not flattened) -- matches
+    fit_batch's serial branch shape so both can be flattened the same way.
+    """
+    return [
+        _fit_one_patient_records(patient_id, group, value_col, timestamp_col, test_code, sex, params, filter_isolated_measurements, min_gap_days, min_measurements)
+        for patient_id, group in chunk
+    ]
+
+
 def fit_batch(
     df: pd.DataFrame,
     value_col: str,
@@ -144,6 +203,7 @@ def fit_batch(
     filter_isolated_measurements: bool = True,
     min_gap_days: int = 90,
     min_measurements: int = 5,
+    n_jobs: int = 1,
 ) -> pd.DataFrame:
     """
     Fit the Bayesian setpoint model for a cohort of patients.
@@ -173,6 +233,14 @@ def fit_batch(
         Gap threshold for isolation filter.
     min_measurements : int
         Patients with fewer measurements after filtering are excluded.
+    n_jobs : int
+        Number of parallel workers (via joblib). Default 1 (serial). Patients
+        are split into n_jobs chunks, each fit serially within one worker --
+        not one joblib task per patient, which under-amortizes both joblib's
+        per-task dispatch overhead and numba's per-process JIT warmup for the
+        (small, sub-millisecond) per-patient fit. Chunking gave ~6x wall-clock
+        improvement in practice vs. ~2x for one-task-per-patient at the same
+        worker count. Pass -1 to use all available cores.
 
     Returns
     -------
@@ -189,32 +257,40 @@ def fit_batch(
         excluded. Check len(result[patient_id_col].unique()) vs the input.
 
     """
-    records = []
+    groups = list(df.groupby(patient_id_col))
 
-    for patient_id, group in df.groupby(patient_id_col):
-        result = fit_patient(
-            values=group[value_col].values,
-            timestamps=group[timestamp_col].values,
-            test_code=test_code,
-            sex=sex,
-            params=params,
-            filter_isolated_measurements=filter_isolated_measurements,
-            min_gap_days=min_gap_days,
-            min_measurements=min_measurements,
-        )
-        if result is None:
-            continue
-        for i, (ts, val, mu, sigma) in enumerate(zip(result.timestamps, result.values, result.mu_history, result.sigma_history)):
-            records.append(
-                {
-                    "patient_id": patient_id,
-                    "timestamp": ts,
-                    "value": val,
-                    "mu": mu,
-                    "sigma": sigma,
-                    "measurement_index": i,
-                }
+    if n_jobs == 1 or len(groups) == 0:
+        per_chunk = [
+            [
+                _fit_one_patient_records(
+                    patient_id, group, value_col, timestamp_col, test_code, sex, params, filter_isolated_measurements, min_gap_days, min_measurements
+                )
+                for patient_id, group in groups
+            ]
+        ]
+    else:
+        import os
+
+        from joblib import Parallel, delayed
+
+        resolved_n_jobs = os.cpu_count() if n_jobs == -1 else n_jobs
+        n_chunks = max(1, min(resolved_n_jobs, len(groups)))
+        chunk_size, remainder = divmod(len(groups), n_chunks)
+        chunks = []
+        start = 0
+        for i in range(n_chunks):
+            size = chunk_size + (1 if i < remainder else 0)
+            chunks.append(groups[start : start + size])
+            start += size
+
+        per_chunk = Parallel(n_jobs=n_chunks)(
+            delayed(_fit_chunk_records)(
+                chunk, value_col, timestamp_col, test_code, sex, params, filter_isolated_measurements, min_gap_days, min_measurements
             )
+            for chunk in chunks
+        )
+
+    records = [record for chunk_records in per_chunk for patient_records in chunk_records for record in patient_records]
 
     if not records:
         return pd.DataFrame(columns=["patient_id", "timestamp", "value", "mu", "sigma", "measurement_index"])
