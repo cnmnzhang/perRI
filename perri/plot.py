@@ -21,23 +21,35 @@ _POP_ALPHA  = 0.3
 _TITLE_FS   = 8
 
 
-def _year_since_baseline(timestamps, extend_days: int = 90):
+def _time_coordinates(timestamps, extend_days: int = 90, projection_timestamp=None):
     """
     Convert timestamps to years from the first measurement.
-    Returns (years_obs, years_est) where years_est shifts the setpoint
-    trajectory forward by one step (mu[t] predicts the next observation)
-    and appends a 90-day projection beyond the last measurement.
+
+    Returns:
+    - years_obs: observed measurement times
+    - years_fit: setpoint trajectory times, shifted forward by one step
+      (mu[t] predicts the next observation) through the last fitted
+      90-day estimate
+    - fit_year: the final fitted estimate time (last measurement + extend_days)
+    - projection_year: the requested projection timestamp, clipped to be at
+      or after fit_year. Equals fit_year when projection_timestamp is None.
     """
     ts = pd.to_datetime(timestamps)
     ts = pd.Series(ts) if not isinstance(ts, pd.Series) else ts
     start = ts.min()
 
-    new_point = ts.iloc[-1] + pd.Timedelta(days=extend_days)
-    ts_est = pd.to_datetime(np.concatenate([ts.iloc[1:].to_numpy(), [new_point]]))
+    fit_point = ts.iloc[-1] + pd.Timedelta(days=extend_days)
+    projection_point = pd.to_datetime(projection_timestamp, errors="coerce")
+    if pd.isna(projection_point) or projection_point < fit_point:
+        projection_point = fit_point
 
-    years     = (ts     - start) / pd.Timedelta(days=365.25)
-    years_est = (ts_est - start) / pd.Timedelta(days=365.25)
-    return years.to_numpy(), years_est.to_numpy()
+    ts_fit = pd.to_datetime(np.concatenate([ts.iloc[1:].to_numpy(), [fit_point]]))
+
+    years_obs = (ts - start) / pd.Timedelta(days=365.25)
+    years_fit = (ts_fit - start) / pd.Timedelta(days=365.25)
+    fit_year = float((fit_point - start) / pd.Timedelta(days=365.25))
+    projection_year = float((projection_point - start) / pd.Timedelta(days=365.25))
+    return years_obs.to_numpy(), years_fit.to_numpy(), fit_year, projection_year
 
 
 def plot_fit(
@@ -51,6 +63,8 @@ def plot_fit(
     title: str = None,
     ylabel: str = "Value",
     ax=None,
+    projection_timestamp=None,
+    add_legend: bool = True,
 ):
     """
     Plot observed measurements alongside the fitted setpoint trajectory.
@@ -81,6 +95,13 @@ def plot_fit(
         y-axis label. Defaults to "Value"; pass "HB (g/dL)" for full context.
     ax : matplotlib.axes.Axes, optional
         Axes to draw on. Creates a new figure if None.
+    projection_timestamp : optional
+        If given, extends the setpoint trajectory as a flat projection from
+        the last fitted estimate out to this date (clipped to be at or after
+        the normal 90-day fit horizon). Useful for showing "where the
+        setpoint band would sit today" beyond the last measurement.
+    add_legend : bool
+        Whether to draw the legend. Default True.
 
     Returns
     -------
@@ -91,7 +112,10 @@ def plot_fit(
     mus    = np.asarray(mu_history, dtype=float)
     sigs   = np.asarray(sigma_history, dtype=float)
 
-    years, years_est = _year_since_baseline(timestamps)
+    years, years_fit, fit_year, projection_year = _time_coordinates(
+        timestamps,
+        projection_timestamp=projection_timestamp,
+    )
     z = stats.norm.ppf(0.5 + confidence_interval / 2)
 
     if ax is None:
@@ -99,7 +123,7 @@ def plot_fit(
     else:
         fig = ax.figure
 
-    x_max = float(years_est[-1])
+    x_max = projection_year
     ax.set_xlim(0, x_max)
 
     # Population RI background (drawn first, behind everything)
@@ -115,7 +139,7 @@ def plot_fit(
 
     # PerRI band
     ax.fill_between(
-        years_est,
+        years_fit,
         mus - z * sigs,
         mus + z * sigs,
         alpha=_PER_ALPHA,
@@ -124,12 +148,35 @@ def plot_fit(
         label=f"PerRI {int(confidence_interval * 100)}% CI",
     )
 
+    if projection_year > fit_year:
+        proj_x = np.array([fit_year, projection_year], dtype=float)
+        proj_lo = np.array([mus[-1] - z * sigs[-1], mus[-1] - z * sigs[-1]], dtype=float)
+        proj_hi = np.array([mus[-1] + z * sigs[-1], mus[-1] + z * sigs[-1]], dtype=float)
+        ax.fill_between(
+            proj_x,
+            proj_lo,
+            proj_hi,
+            alpha=_PER_ALPHA * 0.75,
+            color=_COLOR,
+            linewidth=0,
+        )
+
     # Setpoint trajectory
     ax.plot(
-        years_est, mus,
+        years_fit, mus,
         color=_COLOR, linewidth=_LINEWIDTH * 1.5,
         zorder=2, label="Setpoint",
     )
+
+    if projection_year > fit_year:
+        ax.plot(
+            [fit_year, projection_year],
+            [mus[-1], mus[-1]],
+            color=_COLOR,
+            linewidth=_LINEWIDTH * 1.5,
+            linestyle="-",
+            zorder=2,
+        )
 
     # Observed measurements
     ax.plot(
@@ -146,6 +193,7 @@ def plot_fit(
     ax.set_ylabel(ylabel)
     if title:
         ax.set_title(title, fontsize=_TITLE_FS)
-    ax.legend(fontsize=7)
+    if add_legend:
+        ax.legend(fontsize=7)
 
     return fig, ax

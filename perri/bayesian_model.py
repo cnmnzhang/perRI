@@ -96,7 +96,7 @@ def bayesian(
         grid_size = DEFAULT_GRID_SIZE
 
     if int(grid_size) <= 0:
-        return None, None, None
+        return None, None
 
     x = np.array(x)
     grid_size = int(grid_size)

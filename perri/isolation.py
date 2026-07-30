@@ -39,7 +39,10 @@ def filter_isolated(values, timestamps, min_gap_days: int = 90):
         Corresponding timestamps (as pandas Timestamps), sorted.
     """
     values = np.asarray(values, dtype=float)
-    timestamps = pd.to_datetime(timestamps)
+    # Normalize to a DatetimeIndex regardless of input container (Series,
+    # list, array, Index) -- downstream arithmetic and positional indexing
+    # both need a consistent, array-like type.
+    timestamps = pd.DatetimeIndex(pd.to_datetime(timestamps))
 
     order = np.argsort(timestamps)
     timestamps = timestamps[order]
@@ -51,7 +54,7 @@ def filter_isolated(values, timestamps, min_gap_days: int = 90):
 
 def _isolated_mask(timestamps, min_gap_days: int) -> np.ndarray:
     """Return boolean mask: True where a measurement is isolated."""
-    x_days = (timestamps - timestamps[0]).days.to_numpy(dtype=float)
+    x_days = np.asarray((timestamps - timestamps[0]).days, dtype=float)
     front_gaps = np.diff(x_days, prepend=-np.inf)
     back_gaps = np.diff(x_days, append=np.inf)
     return (front_gaps > min_gap_days) & (back_gaps > min_gap_days)
