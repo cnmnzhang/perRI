@@ -30,6 +30,12 @@ Pre-optimized values for all 43 supported markers are in `perri/data/bayesian_hy
 
 `['A1C', 'ALB', 'ALK', 'ALT', 'AST', 'BIL', 'BILD', 'BUN', 'CA', 'CHOL', 'CL', 'CO2', 'CRE', 'FER', 'GLU', 'HB', 'HCT', 'HDL', 'HSCRP', 'IGAP', 'K', 'LD', 'LDL', 'LYMPH', 'MCH', 'MCHC', 'MCV', 'MG', 'MONOC', 'NA', 'NONHDL', 'P', 'PLT', 'PROINR', 'PROPAT', 'RBC', 'RDWCV', 'TNEUT', 'TP', 'TRIG', 'TSH', 'VITDT', 'WBC']`
 
+Some markers were found to have better performance after log transformation:
+
+`['FER', 'GLU', 'HSCRP', 'TRIG', 'TSH']`
+
+For these markers, `min_mu`/`max_mu` in `bayesian_hyperparameters.csv` are bundled in log-space, and `fit_patient()`/`fit_batch()` log-transform measurements before fitting and back-transform `mu`/`sigma` to raw units after by default. 
+
 ### Measurement Selection
 
 By default, measurements within 90 days of any neighbour are filtered out before fitting to avoid clusters of repeat draws (e.g. serial phlebotomy, acute illness) biasing the setpoint estimate. This can be disabled by passing `filter_isolated_measurements=False` to `fit_patient()` or `fit_batch()`, and the gap threshold can be adjusted via `min_gap_days`.
