@@ -36,12 +36,15 @@ Both functions:
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Optional
 import numpy as np
 import pandas as pd
 
 from .bayesian_model import bayesian
-from .defaults import get_default_params
+from .defaults import get_default_params, is_log_transform
 from .isolation import filter_isolated
+
+_LOG_CLIP = 1e-6
 
 
 @dataclass
@@ -75,6 +78,7 @@ def fit_patient(
     test_code: str = None,
     sex: str = "ALL",
     params: dict = None,
+    log_transform: Optional[bool] = None,
     filter_isolated_measurements: bool = True,
     min_gap_days: int = 90,
     min_measurements: int = 5,
@@ -85,17 +89,28 @@ def fit_patient(
     Parameters
     ----------
     values : array-like of float
-        Measurement values in chronological order.
+        Measurement values in chronological order, in the marker's native
+        (raw) units regardless of log_transform.
     timestamps : array-like
         Corresponding dates. Accepts strings parseable by pd.to_datetime.
     test_code : str, optional
-        Lab marker code (e.g. "HB", "PLT"). Required when params=None.
+        Lab marker code (e.g. "HB", "PLT"). Required when params=None, and
+        used to resolve log_transform when it isn't given explicitly.
     sex : str
         "ALL", "M", or "F". Used to look up sex-stratified defaults.
     params : dict, optional
         Override default hyperparameters. Must include: log_lambda_, min_mu,
         max_mu, min_sigma, max_sigma. When provided, test_code is not needed
         for parameter loading (but may still be used for display/logging).
+        Bounds must be in the same space the fit runs in -- log-space if
+        log_transform resolves True, raw-space otherwise.
+    log_transform : bool, optional
+        Fit in log-space: measurements are log-transformed (clipped at 1e-6)
+        before fitting, and mu/sigma are back-transformed to raw units after
+        (mu_raw = exp(mu_log), sigma_raw = mu_raw * sqrt(exp(sigma_log^2) - 1)).
+        Defaults to `is_log_transform(test_code)` (False if test_code is None) --
+        pass explicitly to override the bundled marker default, e.g. for a
+        marker whose log-space fit is known to underperform for your population.
     filter_isolated_measurements : bool
         If True (default), apply the isolation filter before fitting.
     min_gap_days : int
@@ -115,6 +130,9 @@ def fit_patient(
             raise ValueError("Either test_code or params must be provided.")
         params = get_default_params(test_code, sex=sex)
 
+    if log_transform is None:
+        log_transform = is_log_transform(test_code) if test_code is not None else False
+
     if filter_isolated_measurements:
         values, timestamps = filter_isolated(values, timestamps, min_gap_days=min_gap_days)
     else:
@@ -124,7 +142,13 @@ def fit_patient(
     if len(values) < min_measurements:
         return None
 
-    mu_history, sigma_history = bayesian(values, **params)
+    # forward log transform
+    fit_values = np.log(np.clip(values, _LOG_CLIP, None)) if log_transform else values
+    mu_history, sigma_history = bayesian(fit_values, **params)
+    # back transform to raw units
+    if log_transform:
+        mu_history = np.exp(mu_history)
+        sigma_history = mu_history * np.sqrt(np.exp(sigma_history**2) - 1)
     return SetpointFit(
         mu_history=mu_history,
         sigma_history=sigma_history,
@@ -141,6 +165,7 @@ def _fit_one_patient_records(
     test_code: str,
     sex: str,
     params: dict,
+    log_transform: Optional[bool],
     filter_isolated_measurements: bool,
     min_gap_days: int,
     min_measurements: int,
@@ -151,6 +176,7 @@ def _fit_one_patient_records(
         test_code=test_code,
         sex=sex,
         params=params,
+        log_transform=log_transform,
         filter_isolated_measurements=filter_isolated_measurements,
         min_gap_days=min_gap_days,
         min_measurements=min_measurements,
@@ -177,6 +203,7 @@ def _fit_chunk_records(
     test_code: str,
     sex: str,
     params: dict,
+    log_transform: Optional[bool],
     filter_isolated_measurements: bool,
     min_gap_days: int,
     min_measurements: int,
@@ -187,7 +214,7 @@ def _fit_chunk_records(
     fit_batch's serial branch shape so both can be flattened the same way.
     """
     return [
-        _fit_one_patient_records(patient_id, group, value_col, timestamp_col, test_code, sex, params, filter_isolated_measurements, min_gap_days, min_measurements)
+        _fit_one_patient_records(patient_id, group, value_col, timestamp_col, test_code, sex, params, log_transform, filter_isolated_measurements, min_gap_days, min_measurements)
         for patient_id, group in chunk
     ]
 
@@ -200,6 +227,7 @@ def fit_batch(
     test_code: str = None,
     sex: str = "ALL",
     params: dict = None,
+    log_transform: Optional[bool] = None,
     filter_isolated_measurements: bool = True,
     min_gap_days: int = 90,
     min_measurements: int = 5,
@@ -213,7 +241,8 @@ def fit_batch(
     df : pd.DataFrame
         One row per measurement. Must contain value_col, timestamp_col,
         patient_id_col columns. Additional columns (e.g. test_code, sex) are
-        ignored.
+        ignored. value_col holds raw (native-unit) measurements regardless of
+        log_transform -- the transform, if any, is applied internally.
     value_col : str
         Column name for the measured value.
     timestamp_col : str
@@ -221,12 +250,16 @@ def fit_batch(
     patient_id_col : str
         Column name for the patient identifier.
     test_code : str, optional
-        Lab marker code. Required when params=None.
+        Lab marker code. Required when params=None, and used to resolve
+        log_transform when it isn't given explicitly.
     sex : str
         "ALL", "M", or "F". Applied uniformly to all patients. For sex-stratified
         fitting, split df by sex and call fit_batch() once per sex.
     params : dict, optional
-        Override hyperparameters (same keys as fit_patient()).
+        Override hyperparameters (same keys as fit_patient()). Bounds must be
+        in the same space the fit runs in -- see fit_patient()'s log_transform.
+    log_transform : bool, optional
+        See fit_patient(). Defaults to `is_log_transform(test_code)`.
     filter_isolated_measurements : bool
         Apply isolation filter before fitting. Default True.
     min_gap_days : int
@@ -257,13 +290,16 @@ def fit_batch(
         excluded. Check len(result[patient_id_col].unique()) vs the input.
 
     """
+    if log_transform is None:
+        log_transform = is_log_transform(test_code) if test_code is not None else False
+
     groups = list(df.groupby(patient_id_col))
 
     if n_jobs == 1 or len(groups) == 0:
         per_chunk = [
             [
                 _fit_one_patient_records(
-                    patient_id, group, value_col, timestamp_col, test_code, sex, params, filter_isolated_measurements, min_gap_days, min_measurements
+                    patient_id, group, value_col, timestamp_col, test_code, sex, params, log_transform, filter_isolated_measurements, min_gap_days, min_measurements
                 )
                 for patient_id, group in groups
             ]
@@ -285,7 +321,7 @@ def fit_batch(
 
         per_chunk = Parallel(n_jobs=n_chunks)(
             delayed(_fit_chunk_records)(
-                chunk, value_col, timestamp_col, test_code, sex, params, filter_isolated_measurements, min_gap_days, min_measurements
+                chunk, value_col, timestamp_col, test_code, sex, params, log_transform, filter_isolated_measurements, min_gap_days, min_measurements
             )
             for chunk in chunks
         )

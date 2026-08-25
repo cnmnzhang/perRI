@@ -19,7 +19,7 @@ Quick start
     scores = pri.evaluate_batch(batch_df)
 """
 
-from .defaults import get_default_params, get_intra_patient_std, list_supported_markers
+from .defaults import get_default_params, get_intra_patient_std, is_log_transform, list_supported_markers
 from .fit import SetpointFit, fit_batch, fit_patient
 from .marker_config import BATTERY2TESTCODE, MARKER_CONFIG, MARKER_FULL_NAMES, MARKER_UNITS, get_population_ri
 from .metrics import compute_ks, compute_ks_quintile_range, compute_rmse, evaluate_batch
@@ -36,6 +36,7 @@ __all__ = [
     "evaluate_batch",
     "get_default_params",
     "get_intra_patient_std",
+    "is_log_transform",
     "list_supported_markers",
     "get_population_ri",
     "MARKER_CONFIG",

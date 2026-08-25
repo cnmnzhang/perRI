@@ -38,7 +38,9 @@ def _load() -> pd.DataFrame:
     global _params_df
     if _params_df is None:
         path = _DATA_DIR / "bayesian_hyperparameters.csv"
-        _params_df = pd.read_csv(path, keep_default_na=False)
+        df = pd.read_csv(path, keep_default_na=False)
+        df["log_transformed"] = df["log_transformed"].astype(str).str.strip().str.lower().isin({"true", "1", "yes"})
+        _params_df = df
     return _params_df
 
 
@@ -90,6 +92,23 @@ def list_supported_markers() -> list:
     """Return sorted list of test_code values in the bundled parameter file."""
     df = _load()
     return sorted(df["test_code"].unique().tolist())
+
+
+def is_log_transform(test_code: str) -> bool:
+    """
+    Return whether `test_code` is fit in log-space by default.
+
+    Reflects the bundled CSV's `log_transformed` column -- the research repo's
+    decision that log-space fitting genuinely beat raw-space fitting for that
+    marker (min_mu/max_mu are bundled in log-space accordingly for such rows).
+    Constant across sex rows for a given test_code. Returns False for markers
+    not found in the bundled CSV.
+    """
+    df = _load()
+    subset = df[df["test_code"] == test_code]
+    if subset.empty:
+        return False
+    return bool(subset.iloc[0]["log_transformed"])
 
 
 def get_intra_patient_std(test_code: str, sex: str = "ALL") -> float:
