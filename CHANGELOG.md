@@ -1,9 +1,6 @@
 # Changelog
 
 ## v0.4.0 — 2026-09-21
-
-Aligns A1C with bayesian-setpoint-inference (bsi) commit `<COMMIT_HASH>` (report `docs/mu_bounds.md`, data version `v_obj2`).
-
 ### Changed
 - **A1C mu bounds.** Before, the bounds came from the reference interval (4.0–5.6), which gave (1.6, 8.0). Patients whose A1C setpoint was above 8% could not be represented. The bounds are now the empirical 0.5th/99.5th percentiles of isolated A1C measurements:
 
