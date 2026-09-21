@@ -1,0 +1,4 @@
+test_code,sex,min_mu,max_mu,method,percentiles,n_measurements,data_version,source,notes
+A1C,ALL,4.5,12.8,empirical_percentile,0.5/99.5,247655,v_obj2,bayesian-setpoint-inference commit <COMMIT_HASH> (docs/mu_bounds.md),"Replaces RI-derived (1.6, 8.0) which clipped patients >8%. Reference only, unused: 2.5/97.5 = (4.8, 10.9)"
+A1C,F,4.5,12.8,empirical_percentile,0.5/99.5,116364,v_obj2,bayesian-setpoint-inference commit <COMMIT_HASH> (docs/mu_bounds.md),"Replaces RI-derived (1.6, 8.0) which clipped patients >8%. Reference only, unused: 2.5/97.5 = (4.8075, 10.8)"
+A1C,M,4.5,12.9,empirical_percentile,0.5/99.5,131291,v_obj2,bayesian-setpoint-inference commit <COMMIT_HASH> (docs/mu_bounds.md),"Replaces RI-derived (1.6, 8.0) which clipped patients >8%. Reference only, unused: 2.5/97.5 = (4.8, 11.0)"
