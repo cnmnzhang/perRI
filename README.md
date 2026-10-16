@@ -23,7 +23,7 @@ The model takes an ordered sequence of measurement values and timestamps for a s
 | Parameter | Description |
 |-----------|-------------|
 | `log_lambda_` | Log of the temporal decay rate. Higher values give more weight to recent measurements over older ones. Optimized per marker, procedure mentioned in the paper |
-| `min_mu`, `max_mu` | Search grid bounds for the setpoint μ. Derived from the population RI by default; markers listed in `perri/data/mu_bound_overrides.csv` use the bounds given there directly (currently A1C: empirical 0.5th/99.5th percentiles, see CHANGELOG). |
+| `min_mu`, `max_mu` | Search grid bounds for the setpoint μ. Bundled defaults are calibrated to UWM. `perri.bounds.resolve_grid_bounds` calculates site-specific bounds using each marker's policy in `perri/marker_config.py`: clinical RI by default, empirical 0.5th/99.5th percentiles for A1C, and an empirical upper side for HDL. |
 | `min_sigma`, `max_sigma` | Search grid bounds for within-person SD σ. |
 
 Pre-optimized values for all 43 supported markers are in `perri/data/bayesian_hyperparameters.csv`, stratified by sex (`ALL`, `M`, `F`). Supported markers: 

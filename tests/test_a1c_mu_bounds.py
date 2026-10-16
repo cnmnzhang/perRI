@@ -1,8 +1,7 @@
-"""A1C mu-bound / lambda update (v0.4.0) and mu-bound override guard. Synthetic data only."""
+"""A1C mu-bound / lambda defaults. Synthetic data only."""
 
 import json
 import math
-import shutil
 from pathlib import Path
 
 import numpy as np
@@ -10,7 +9,6 @@ import pandas as pd
 import pytest
 
 import perri as pri
-from perri import defaults
 
 SEXES = ("ALL", "F", "M")
 SNAPSHOT_V030 = json.loads((Path(__file__).parent / "fixtures" / "default_params_v0.3.0.json").read_text())
@@ -44,10 +42,33 @@ def test_snapshot_covers_every_marker_and_sex():
     assert set(SNAPSHOT_V030) == {f"{tc}|{s}" for tc in pri.list_supported_markers() for s in SEXES}
 
 
-@pytest.mark.parametrize("key", sorted(k for k in SNAPSHOT_V030 if not k.startswith("A1C|")))
-def test_non_a1c_params_identical_to_v030(key):
+@pytest.mark.parametrize("key", sorted(k for k in SNAPSHOT_V030 if k.split("|")[0] not in {"A1C", "RBC", "RDWCV"}))
+def test_other_params_identical_to_v030(key):
     tc, sex = key.split("|")
     assert pri.get_default_params(tc, sex) == SNAPSHOT_V030[key]
+
+
+@pytest.mark.parametrize("test_code, sex, expected_lambda", [
+    ("RBC", "ALL", 0.7841514937236451),
+    ("RBC", "F", 0.43041668161665625),
+    ("RBC", "M", 1.138549412002305),
+    ("RDWCV", "ALL", 1.0022115712102222),
+    ("RDWCV", "F", 0.9132405836660368),
+    ("RDWCV", "M", 0.9716854868370356),
+])
+def test_rbc_rdwcv_defaults_match_updated_reference_ranges(test_code, sex, expected_lambda):
+    from perri.marker_config import MARKER_CONFIG
+
+    ri = MARKER_CONFIG[test_code]["pop_ri"]
+    lower = min(bounds[0] for bounds in ri.values()) if sex == "ALL" else ri[sex][0]
+    upper = max(bounds[1] for bounds in ri.values()) if sex == "ALL" else ri[sex][1]
+    width = upper - lower
+    midpoint = (lower + upper) / 2
+    params = pri.get_default_params(test_code, sex)
+    assert params["log_lambda_"] == pytest.approx(expected_lambda)
+    assert params["min_mu"] == pytest.approx(midpoint - 2 * width)
+    assert params["max_mu"] == pytest.approx(midpoint + 2 * width)
+    assert params["max_sigma"] == pytest.approx(width / (2 * 1.96))
 
 
 def _synthetic_high_a1c_patient(seed=0, n=10, center=11.5):
@@ -71,60 +92,3 @@ def test_old_bounds_would_have_clipped():
     old = dict(SNAPSHOT_V030["A1C|ALL"])
     fit = pri.fit_patient(values, timestamps, params=old)
     assert fit.mu_history[-1] <= old["max_mu"]
-
-
-# ── override guard ──────────────────────────────────────────────────────────
-
-def _override_df(**row):
-    base = {"test_code": "A1C", "sex": "ALL", "min_mu": "4.5", "max_mu": "12.8"}
-    base.update(row)
-    return pd.DataFrame([base])
-
-
-@pytest.mark.parametrize(
-    "row, match",
-    [
-        ({"min_mu": ""}, "missing/non-numeric"),
-        ({"max_mu": ""}, "missing/non-numeric"),
-        ({"max_mu": "abc"}, "missing/non-numeric"),
-        ({"min_mu": "nan"}, "non-finite"),
-        ({"max_mu": "inf"}, "non-finite"),
-        ({"min_mu": "13", "max_mu": "4"}, "min_mu < max_mu"),
-        ({"test_code": "NOPE"}, "no matching row"),
-    ],
-)
-def test_override_guard_rejects_bad_bounds(row, match):
-    with pytest.raises(ValueError, match=match):
-        defaults._validate_mu_bound_overrides(_override_df(**row), defaults._load())
-
-
-def test_override_guard_rejects_duplicates():
-    df = pd.concat([_override_df(), _override_df()], ignore_index=True)
-    with pytest.raises(ValueError, match="Duplicate"):
-        defaults._validate_mu_bound_overrides(df, defaults._load())
-
-
-def test_bundled_overrides_are_valid():
-    defaults._validate_mu_bound_overrides(pd.read_csv(defaults._DATA_DIR / "mu_bound_overrides.csv", dtype=str, keep_default_na=False), defaults._load())
-
-
-def test_bad_override_file_fails_loudly_on_param_lookup(tmp_path, monkeypatch):
-    shutil.copy(defaults._DATA_DIR / "bayesian_hyperparameters.csv", tmp_path)
-    (tmp_path / "mu_bound_overrides.csv").write_text("test_code,sex,min_mu,max_mu\nHB,ALL,,27.75\n")
-    monkeypatch.setattr(defaults, "_DATA_DIR", tmp_path)
-    monkeypatch.setattr(defaults, "_params_df", None)
-    monkeypatch.setattr(defaults, "_overrides_df", None)
-    with pytest.raises(ValueError, match=r"\('HB', 'ALL'\)"):
-        pri.get_default_params("GLU")
-
-
-def test_override_applies_to_other_markers(tmp_path, monkeypatch):
-    shutil.copy(defaults._DATA_DIR / "bayesian_hyperparameters.csv", tmp_path)
-    (tmp_path / "mu_bound_overrides.csv").write_text("test_code,sex,min_mu,max_mu\nHB,F,6.0,20.0\n")
-    monkeypatch.setattr(defaults, "_DATA_DIR", tmp_path)
-    monkeypatch.setattr(defaults, "_params_df", None)
-    monkeypatch.setattr(defaults, "_overrides_df", None)
-    p = pri.get_default_params("HB", "F")
-    assert (p["min_mu"], p["max_mu"]) == (6.0, 20.0)
-    assert p["log_lambda_"] == SNAPSHOT_V030["HB|F"]["log_lambda_"]
-    assert pri.get_default_params("HB", "M") == SNAPSHOT_V030["HB|M"]
