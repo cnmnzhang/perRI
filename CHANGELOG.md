@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## v0.5.0 — 2026-10-23
 - Marker bound policies now live in `perri/marker_config.py`. `perri.bounds.resolve_grid_bounds` calculates clinical, A1C empirical mu, and HDL open-side bounds from a site's isolated measurements. The bundled UWM defaults remain in `bayesian_hyperparameters.csv`; the separate `mu_bound_overrides.csv` file has been removed.
 
 ## v0.4.0 — 2026-09-21
